@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					   xmlns:s="library://ns.adobe.com/flex/spark" 
+					   xmlns:mx="library://ns.adobe.com/flex/mx"
+					   creationComplete="onCreationComplete()"
+					   width="1024"
+					   height="700" xmlns:search="com.era7.util.gui.search.*">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import com.era7.bioinfo.xml.Protein;
+			import com.era7.bioinfo.xml.annotation.PredictedGene;
+			import com.era7.bioinfo.xml.annotation.PredictedRna;
+			import com.era7.util.debug.Debugger;
+			import com.era7.util.events.SearchBarEvent;
+			
+			import flash.net.navigateToURL;
+			
+			import mx.charts.series.LineSeries;
+			import mx.collections.ArrayCollection;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.containers.HBox;
+			import mx.controls.Alert;
+			import mx.core.Window;
+			import mx.events.ListEvent;
+			import mx.events.MenuEvent;
+			import mx.managers.PopUpManager;
+			
+			[Bindable]
+			[Embed(source="../assets/search.png")]
+			protected var searchIcon:Class;
+			
+			[Bindable]
+			[Embed(source="../assets/nextPage.png")]
+			protected var nextResultIcon:Class;
+			
+			[Bindable]
+			[Embed(source="../assets/previousPage.png")]
+			protected var previousResultIcon:Class;
+			
+			protected var file:File  = null;
+			
+			[Bindable]
+			protected var xml:XML = null;
+			[Bindable]
+			protected var selectedProtein:XML = null;
+			
+			
+			protected var rootMenu:NativeMenu;			
+			
+			
+			public static const BAR_HEIGHT:Number = 25;
+			public static const BAR_SEPARATOR:Number = 10;
+			
+			/*
+			*	ON CREATION COMPLETE
+			*/
+			protected function onCreationComplete():void
+			{
+				
+				//--------menu commands----------------
+				rootMenu = new NativeMenu();
+				this.nativeWindow.menu = rootMenu;				
+				var fileMenuItem:NativeMenuItem = rootMenu.addSubmenu(new NativeMenu(), "File");
+				var openMenuItem:NativeMenuItem = new NativeMenuItem("Open",false);
+				openMenuItem.addEventListener(Event.SELECT, onOpenFile);
+				fileMenuItem.submenu.addItem(openMenuItem);
+				//-----------------------------------------
+				
+				file = new File();
+				file.addEventListener(Event.SELECT,onSelectFile);
+				
+				proteinsSearchBar.addEventListener(SearchBarEvent.SEARCH,onSearchProtein);
+				proteinsSearchBar.addEventListener(SearchBarEvent.GO_TO_ELEMENT,onGoToElementProtein);
+				
+				
+			}
+			
+			
+			protected function onSelectFile(event:Event):void{
+								
+				this.nativeWindow.title = "Gene results viewer (" + file.nativePath + ")";
+				//selectedFileTextInput.text = file.nativePath;
+				
+				var fileStream:FileStream = new FileStream();
+				fileStream.open(file, FileMode.READ);
+				
+				var fileContents:String = fileStream.readUTFBytes(fileStream.bytesAvailable);
+				fileStream.close();
+				
+				xml = new XML(fileContents);
+								
+				//Por ultimo autoselecciono el primer contig para que el datagrid no salga vacio
+				proteinsDataGrid.selectedIndex = 0;
+				proteinsDataGrid_itemClickHandler(null);
+				
+			}			
+			
+			protected function proteinsDataGrid_itemClickHandler(event:ListEvent):void
+			{
+				if(proteinsDataGrid.selectedItem != null){
+					selectedProtein = XML(proteinsDataGrid.selectedItem);
+					
+					var contigList:XMLList = XMLList(selectedProtein.contig);
+					var tempSeriesArray:Array = new Array();
+					
+					chartCanvas.removeAllChildren();
+					labelsCanvas.removeAllChildren();
+					
+					var mainWidth:int = chartCanvas.width;
+					var proteinLength:Number = selectedProtein.length;	
+					
+					var currentHeight:int = 0;
+					
+					//----------------protein bar----------------
+					var proteinHGroup:HBox = new HBox();
+					
+					proteinHGroup.height = BAR_HEIGHT;
+					proteinHGroup.setStyle("backgroundColor", Math.random() * uint.MAX_VALUE);	
+					proteinHGroup.setStyle("horizontalAlign", "center");
+					proteinHGroup.setStyle("verticalAlign", "middle");
+					proteinHGroup.y = currentHeight;
+					proteinHGroup.x = 1;
+					proteinHGroup.percentWidth = 100.0;
+					chartCanvas.addChild(proteinHGroup);
+					
+					var proteinLabel:mx.controls.Label = new mx.controls.Label(); 
+					proteinLabel.selectable = true;
+					proteinLabel.x = 5;
+					proteinLabel.y = currentHeight;
+					proteinLabel.text = selectedProtein.id.toString();					
+					labelsCanvas.addChild(proteinLabel);
+					
+					currentHeight += BAR_HEIGHT;
+					currentHeight += BAR_SEPARATOR;
+					
+					//---------contig/isotigs bars------------------
+					for each(var contig:XML in contigList){
+						var hgroup:HBox = new HBox();
+						
+						hgroup.height = BAR_HEIGHT;
+						
+						var contigBegin:int = contig.begin;
+						var contigEnd:int = contig.end;
+						
+						hgroup.y = currentHeight;
+						hgroup.x = Math.round((contigBegin * mainWidth)/proteinLength);
+						var tempWidth:Number = Math.round(((contigEnd - contigBegin) * mainWidth)/proteinLength);
+						hgroup.percentWidth = (100.0 * tempWidth)/mainWidth; 
+						hgroup.setStyle("backgroundColor", Math.random() * uint.MAX_VALUE);
+						hgroup.setStyle("horizontalAlign", "center");
+						hgroup.setStyle("verticalAlign", "middle");
+						
+						var contigLabel:mx.controls.Label = new mx.controls.Label(); 
+						contigLabel.selectable = true;
+						contigLabel.text = contig.id.toString();
+						contigLabel.x = 5;
+						contigLabel.y = currentHeight;
+						labelsCanvas.addChild(contigLabel);
+						
+						currentHeight += BAR_HEIGHT;
+						currentHeight += BAR_SEPARATOR;
+						
+						chartCanvas.addChild(hgroup);
+						
+					}
+					
+					
+				}
+			}
+			
+			
+			
+			protected function proteinLengthSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,Protein.LENGTH_TAG_NAME);			
+			}
+			protected function proteinCoverageAbsoluteSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,Protein.PROTEIN_COVERAGE_ABSOLUTE_TAG_NAME);			
+			}
+			protected function proteinCoveragePercentageSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,Protein.PROTEIN_COVERAGE_PERCENTAGE_TAG_NAME);			
+			}
+			
+			protected function contigFromSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,"begin");			
+			}
+			protected function contigToSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,"to");			
+			}
+			protected function numberOfIsotigsSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,"number_of_isotigs");			
+			}
+			
+			protected function genericNumberSortFunction(obj1:Object,obj2:Object,tagName:String):int{
+				var xml1:XML = XML(obj1);
+				var xml2:XML = XML(obj2);
+				
+				var n1:Number = Number(xml1.child(tagName)[0]);
+				var n2:Number = Number(xml2.child(tagName)[0]);
+				if(n1 < n2){
+					return -1;
+				} else if(n1 == n2){
+					return 0;
+				} else{
+					return 1;
+				}
+			}			
+			
+			protected function onHeaderClick():void{
+				navigateToURL(new URLRequest("http://www.era7bioinformatics.com"));
+			}
+			
+			
+			protected function onOpenFile(event:Event):void
+			{				
+				file.browse([new FileFilter("archivos xml: ","*.xml")]);				
+			}
+			
+			protected function onSearchProtein(event:SearchBarEvent):void{
+				var items:XMLList = xml.protein;
+				
+				var results:Array = new Array();
+				var list:XMLList = XMLList(items.((child(String(proteinsSearchComboBox.selectedItem))).text().toUpperCase().indexOf(event.getSearchText().toUpperCase()) >=0 ));
+				for each(var tempXML:XML in list){
+					var tempProtein:Protein = new Protein(tempXML);
+					results.push(tempProtein.id);
+				}
+				proteinsSearchBar.setResults(results); 				
+			}
+			protected function onGoToElementProtein(event:SearchBarEvent):void{				
+				var list:XMLList = xml.protein;
+				var found:Boolean = false;
+				
+				for(var i:int=0;i<list.length() && !found;i++){
+					var tempProtein:Protein = new Protein(list[i]);
+					if(tempProtein.id == event.getSearchText()){
+						proteinsDataGrid.selectedIndex = i;	
+						proteinsDataGrid.scrollToIndex(i);
+						found = true;
+						proteinsDataGrid_itemClickHandler(null);
+					}
+				}	
+							 			
+			}
+			
+
+		]]>
+	</fx:Script>
+	<s:VGroup left="10" top="120" right="10" bottom="10">
+						
+		<mx:HDividedBox label="Contigs" width="100%" height="100%">
+			<mx:VBox  width="45%" height="100%">
+					<s:HGroup width="100%" verticalAlign="middle">
+						<s:ComboBox id="proteinsSearchComboBox" selectedIndex="0" width="60">
+							<s:dataProvider>
+								<mx:ArrayList>
+									<fx:String>id</fx:String>
+								</mx:ArrayList>
+							</s:dataProvider>
+						</s:ComboBox>
+						<search:SearchBar width="100%" id="proteinsSearchBar"
+										  searchIcon="{searchIcon}"
+										  nextResultIcon="{nextResultIcon}"
+										  previousResultIcon="{previousResultIcon}">
+						</search:SearchBar>
+					</s:HGroup>
+					<mx:DataGrid id="proteinsDataGrid" 
+								 height="100%" width="100%"
+								 dataProvider="{xml.protein}" 
+								 itemClick="proteinsDataGrid_itemClickHandler(event)" 
+								 selectable="true" >
+						<mx:columns>
+							<mx:DataGridColumn headerText="Protein ID" 
+											   dataField="id"
+											   itemRenderer="com.era7.bioinfo.iso.UniprotIdItemRenderer"											   
+											   />
+							<mx:DataGridColumn headerText="Length" 
+											   dataField="length"
+											   sortDescending="true" 
+											   sortCompareFunction="proteinLengthSortCompareFunction"
+											   />
+							<mx:DataGridColumn headerText="Number of isotigs"
+											   dataField="number_of_isotigs"
+											   sortDescending="true"
+											   sortCompareFunction="numberOfIsotigsSortCompareFunction"
+											   />
+							<mx:DataGridColumn headerText="Coverage (abs)" 
+											   dataField="protein_coverage_absolute"
+											   sortDescending="true" 
+											   sortCompareFunction="proteinCoverageAbsoluteSortCompareFunction"/>
+							<mx:DataGridColumn headerText="Coverage (%)" 
+											   dataField="protein_coverage_percentage"
+											   sortDescending="true" 
+											   sortCompareFunction="proteinCoveragePercentageSortCompareFunction"/>
+						</mx:columns>
+					</mx:DataGrid>
+				</mx:VBox>
+			<mx:VBox  width="55%" height="100%">
+					<s:HGroup width="100%" verticalAlign="middle" height="33">
+							<s:Label text="Coverage visualization"/>
+					</s:HGroup>
+					
+				<mx:VDividedBox width="100%" height="100%">
+					<s:HGroup width="100%" paddingLeft="10" paddingRight="10" paddingTop="10" paddingBottom="10" contentBackgroundColor="#F6F6F6">
+						<mx:Canvas id="labelsCanvas"						   
+								   height="100%"/>
+						<mx:Canvas id="chartCanvas"
+								   width="100%"
+								   height="100%"/>
+					</s:HGroup>	
+					<mx:DataGrid id="contigsDataGrid" 
+								 width="100%" height="100%"
+								 dataProvider="{selectedProtein.contig}"
+								 selectable="true">
+						<mx:columns>
+							<mx:DataGridColumn headerText="Contig ID" 
+											   dataField="id" />
+							<mx:DataGridColumn headerText="From" 
+											   dataField="begin" 
+											   sortCompareFunction="contigFromSortCompareFunction"/>
+							<mx:DataGridColumn headerText="To" 
+											   dataField="end" 
+											   sortCompareFunction="contigToSortCompareFunction"/>
+						</mx:columns>
+					</mx:DataGrid>	
+				</mx:VDividedBox>					
+			</mx:VBox>									
+		</mx:HDividedBox>	
+	</s:VGroup>		
+	<mx:SWFLoader left="10" top="10" right="10" height="104"					  
+				  source="@Embed('../assets/imagenes_web_Era7_Bioinformatics_definitivas/header_2010.jpg')" 
+				  scaleContent="false" useHandCursor="true" buttonMode="true" mouseChildren="false"
+				  click="onHeaderClick()"/>
+</s:WindowedApplication>
