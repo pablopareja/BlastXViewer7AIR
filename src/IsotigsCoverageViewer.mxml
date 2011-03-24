@@ -12,9 +12,11 @@
 	
 	<fx:Script>
 		<![CDATA[
+			import com.era7.bioinfo.iso.HspViewerTitleWindow;
 			import com.era7.bioinfo.xml.Protein;
 			import com.era7.bioinfo.xml.annotation.PredictedGene;
 			import com.era7.bioinfo.xml.annotation.PredictedRna;
+			import com.era7.bioinfo.xml.blast.Hsp;
 			import com.era7.util.debug.Debugger;
 			import com.era7.util.events.SearchBarEvent;
 			
@@ -49,9 +51,13 @@
 			protected var xml:XML = null;
 			[Bindable]
 			protected var selectedProtein:XML = null;
+			[Bindable]
+			protected var selectedHsps:XML = null;
 			
 			
-			protected var rootMenu:NativeMenu;			
+			protected var rootMenu:NativeMenu;		
+			
+			protected var hspViewerTitleWindow:HspViewerTitleWindow = null;
 			
 			
 			public static const BAR_HEIGHT:Number = 25;
@@ -79,6 +85,15 @@
 				proteinsSearchBar.addEventListener(SearchBarEvent.GO_TO_ELEMENT,onGoToElementProtein);
 				
 				
+			}
+			
+			protected function initHspViewerTitleWindow():void{
+				if(hspViewerTitleWindow == null){
+					hspViewerTitleWindow = HspViewerTitleWindow(PopUpManager.createPopUp(this,HspViewerTitleWindow,false));
+					PopUpManager.centerPopUp(hspViewerTitleWindow);
+				}
+				PopUpManager.bringToFront(hspViewerTitleWindow);
+				hspViewerTitleWindow.visible = true;
 			}
 			
 			
@@ -170,10 +185,15 @@
 						
 					}
 					
+					selectFirstContig();
 					
 				}
 			}
 			
+			protected function selectFirstContig():void{
+				contigsDataGrid.selectedIndex = 0;
+				contigsDataGrid_itemClickHandler(null);
+			}
 			
 			
 			protected function proteinLengthSortCompareFunction(obj1:Object,obj2:Object):int{
@@ -196,6 +216,16 @@
 				return genericNumberSortFunction(obj1,obj2,"number_of_isotigs");			
 			}
 			
+			protected function hspHitToSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,Hsp.HIT_TO_TAG_NAME);			
+			}
+			protected function hspHitFromSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,Hsp.HIT_FROM_TAG_NAME);			
+			}
+			protected function hspIdentitySortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,Hsp.IDENTITY_TAG_NAME);			
+			}
+			
 			protected function genericNumberSortFunction(obj1:Object,obj2:Object,tagName:String):int{
 				var xml1:XML = XML(obj1);
 				var xml2:XML = XML(obj2);
@@ -204,9 +234,9 @@
 				var n2:Number = Number(xml2.child(tagName)[0]);
 				if(n1 < n2){
 					return -1;
-				} else if(n1 == n2){
+				}  else if(n1 == n2){
 					return 0;
-				} else{
+				}  else{
 					return 1;
 				}
 			}			
@@ -248,6 +278,22 @@
 							 			
 			}
 			
+
+			protected function hspsDataGrid_itemDoubleClickHandler(event:ListEvent):void
+			{
+				if( hspsDataGrid.selectedItem != null){
+					initHspViewerTitleWindow();
+					hspViewerTitleWindow.setHsp(new Hsp(XML(hspsDataGrid.selectedItem)));
+				}
+			}
+
+
+			protected function contigsDataGrid_itemClickHandler(event:ListEvent):void
+			{
+				if(contigsDataGrid.selectedItem != null){
+					selectedHsps = XML(contigsDataGrid.selectedItem).hsps[0];					
+				}
+			}
 
 		]]>
 	</fx:Script>
@@ -302,32 +348,69 @@
 				</mx:VBox>
 			<mx:VBox  width="55%" height="100%">
 					<s:HGroup width="100%" verticalAlign="middle" height="33">
-							<s:Label text="Coverage visualization"/>
+							<s:Label text="Coverage visualization" fontWeight="bold"/>
 					</s:HGroup>
 					
-				<mx:VDividedBox width="100%" height="100%">
-					<s:HGroup width="100%" paddingLeft="10" paddingRight="10" paddingTop="10" paddingBottom="10" contentBackgroundColor="#F6F6F6">
+				<mx:VDividedBox width="100%" height="100%" horizontalAlign="center">
+					<s:HGroup width="100%" paddingLeft="10" 
+							  paddingRight="10" 
+							  paddingTop="10" 
+							  paddingBottom="10" 
+							  contentBackgroundColor="#F6F6F6">
 						<mx:Canvas id="labelsCanvas"						   
 								   height="100%"/>
 						<mx:Canvas id="chartCanvas"
 								   width="100%"
 								   height="100%"/>
 					</s:HGroup>	
-					<mx:DataGrid id="contigsDataGrid" 
-								 width="100%" height="100%"
-								 dataProvider="{selectedProtein.contig}"
-								 selectable="true">
-						<mx:columns>
-							<mx:DataGridColumn headerText="Contig ID" 
-											   dataField="id" />
-							<mx:DataGridColumn headerText="From" 
-											   dataField="begin" 
-											   sortCompareFunction="contigFromSortCompareFunction"/>
-							<mx:DataGridColumn headerText="To" 
-											   dataField="end" 
-											   sortCompareFunction="contigToSortCompareFunction"/>
-						</mx:columns>
-					</mx:DataGrid>	
+					<s:VGroup width="100%" height="100%">
+						<s:HGroup width="100%" verticalAlign="middle">
+							<s:Label text="Selected protein contigs" fontWeight="bold"/>
+							<mx:Spacer width="100%"/>
+							<s:Label text="(Click in a contig to refresh the hsps datagrid)" fontStyle="italic"/>
+						</s:HGroup>
+						<mx:DataGrid id="contigsDataGrid" 
+									 width="100%" height="100%"
+									 dataProvider="{selectedProtein.contig}"
+									 selectable="true"
+									 itemClick="contigsDataGrid_itemClickHandler(event)">
+							<mx:columns>
+								<mx:DataGridColumn headerText="Contig ID" 
+												   dataField="id" />
+								<mx:DataGridColumn headerText="From" 
+												   dataField="begin" 
+												   sortCompareFunction="contigFromSortCompareFunction"/>
+								<mx:DataGridColumn headerText="To" 
+												   dataField="end" 
+												   sortCompareFunction="contigToSortCompareFunction"/>
+							</mx:columns>
+						</mx:DataGrid>	
+					</s:VGroup>	
+					<s:VGroup width="100%" height="100%">
+						<s:HGroup width="100%" verticalAlign="middle">
+							<s:Label text="Hsps from selected contig" fontWeight="bold"/>
+							<mx:Spacer width="100%"/>
+							<s:Label text="(Please double-click in a hsp to view its data)" fontStyle="italic"/>
+						</s:HGroup>
+						<mx:DataGrid id="hspsDataGrid" 
+									 width="100%" height="100%"
+									 dataProvider="{selectedHsps.Hsp}"
+									 selectable="true"
+									 itemDoubleClick="hspsDataGrid_itemDoubleClickHandler(event)"
+									 doubleClickEnabled="true">
+							<mx:columns>
+								<mx:DataGridColumn headerText="Hit from" 
+												   dataField="{Hsp.HIT_FROM_TAG_NAME}"
+												   sortCompareFunction="hspHitFromSortCompareFunction"/>
+								<mx:DataGridColumn headerText="Hit to" 
+												   dataField="{Hsp.HIT_TO_TAG_NAME}" 
+												   sortCompareFunction="hspHitToSortCompareFunction"/>
+								<mx:DataGridColumn headerText="Identity" 
+												   dataField="{Hsp.IDENTITY_TAG_NAME}" 
+												   sortCompareFunction="hspIdentitySortCompareFunction"/>
+							</mx:columns>
+						</mx:DataGrid>
+					</s:VGroup>						
 				</mx:VDividedBox>					
 			</mx:VBox>									
 		</mx:HDividedBox>	
