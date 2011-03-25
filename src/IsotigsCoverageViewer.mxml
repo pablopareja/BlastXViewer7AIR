@@ -63,6 +63,11 @@
 			public static const BAR_HEIGHT:Number = 25;
 			public static const BAR_SEPARATOR:Number = 10;
 			
+			//public static 
+			
+			
+			protected var isotigBars:Array = new Array();
+			
 			/*
 			*	ON CREATION COMPLETE
 			*/
@@ -119,6 +124,7 @@
 			protected function proteinsDataGrid_itemClickHandler(event:ListEvent):void
 			{
 				if(proteinsDataGrid.selectedItem != null){
+					
 					selectedProtein = XML(proteinsDataGrid.selectedItem);
 					
 					var contigList:XMLList = XMLList(selectedProtein.contig);
@@ -136,11 +142,9 @@
 					var proteinHGroup:HBox = new HBox();
 					
 					proteinHGroup.height = BAR_HEIGHT;
-					proteinHGroup.setStyle("backgroundColor", Math.random() * uint.MAX_VALUE);	
-					proteinHGroup.setStyle("horizontalAlign", "center");
-					proteinHGroup.setStyle("verticalAlign", "middle");
+					proteinHGroup.setStyle("backgroundColor", Math.random() * uint.MAX_VALUE);
 					proteinHGroup.y = currentHeight;
-					proteinHGroup.x = 1;
+					proteinHGroup.x = 0;
 					proteinHGroup.percentWidth = 100.0;
 					chartCanvas.addChild(proteinHGroup);
 					
@@ -154,6 +158,8 @@
 					currentHeight += BAR_HEIGHT;
 					currentHeight += BAR_SEPARATOR;
 					
+					isotigBars = new Array();
+					
 					//---------contig/isotigs bars------------------
 					for each(var contig:XML in contigList){
 						var hgroup:HBox = new HBox();
@@ -164,12 +170,16 @@
 						var contigEnd:int = contig.end;
 						
 						hgroup.y = currentHeight;
-						hgroup.x = Math.round((contigBegin * mainWidth)/proteinLength);
-						var tempWidth:Number = Math.round(((contigEnd - contigBegin) * mainWidth)/proteinLength);
-						hgroup.percentWidth = (100.0 * tempWidth)/mainWidth; 
+						if(contigBegin == 1){
+							hgroup.x = 0;
+						}else{
+							hgroup.x = Math.floor((contigBegin * mainWidth)/proteinLength);	
+						}							
+						var tempWidth:Number = Math.round(((contigEnd - contigBegin) * mainWidth)/proteinLength);						
+						hgroup.percentWidth = Math.ceil((100.0 * tempWidth)/mainWidth); 
 						hgroup.setStyle("backgroundColor", Math.random() * uint.MAX_VALUE);
-						hgroup.setStyle("horizontalAlign", "center");
-						hgroup.setStyle("verticalAlign", "middle");
+						
+						isotigBars.push(hgroup);
 						
 						var contigLabel:mx.controls.Label = new mx.controls.Label(); 
 						contigLabel.selectable = true;
@@ -295,6 +305,24 @@
 				}
 			}
 
+			
+			protected function onUpdateComplete():void{
+				
+				for(var i:int = 0; i< isotigBars.length ; i++){
+					
+					var bar:HBox = isotigBars[i];
+					
+					//Debugger.appendText("percentage width: " + bar.percentWidth,Debugger.ERROR_MODE);
+					var contigBegin:int = selectedProtein.contig[i].begin
+					if(contigBegin == 1){
+						bar.x = 0;
+					}else{
+						bar.x = Math.round((contigBegin * chartCanvas.width)/selectedProtein.length);
+					}					
+					bar.validateNow();
+				}
+			}
+			
 		]]>
 	</fx:Script>
 	<s:VGroup left="10" top="120" right="10" bottom="10">
@@ -351,12 +379,13 @@
 							<s:Label text="Coverage visualization" fontWeight="bold"/>
 					</s:HGroup>
 					
-				<mx:VDividedBox width="100%" height="100%" horizontalAlign="center">
+				<mx:VDividedBox width="100%" height="100%" horizontalAlign="center"	>
 					<s:HGroup width="100%" paddingLeft="10" 
 							  paddingRight="10" 
 							  paddingTop="10" 
 							  paddingBottom="10" 
-							  contentBackgroundColor="#F6F6F6">
+							  contentBackgroundColor="#F6F6F6"
+							  updateComplete="onUpdateComplete()">
 						<mx:Canvas id="labelsCanvas"						   
 								   height="100%"/>
 						<mx:Canvas id="chartCanvas"
