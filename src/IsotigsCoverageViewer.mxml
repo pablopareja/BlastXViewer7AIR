@@ -68,6 +68,8 @@
 			
 			protected var isotigBars:Array = new Array();
 			
+			protected var proteinHGroup:HBox = null;
+			
 			/*
 			*	ON CREATION COMPLETE
 			*/
@@ -139,13 +141,14 @@
 					var currentHeight:int = 0;
 					
 					//----------------protein bar----------------
-					var proteinHGroup:HBox = new HBox();
+					proteinHGroup = new HBox();
 					
 					proteinHGroup.height = BAR_HEIGHT;
 					proteinHGroup.setStyle("backgroundColor", Math.random() * uint.MAX_VALUE);
 					proteinHGroup.y = currentHeight;
 					proteinHGroup.x = 0;
-					proteinHGroup.percentWidth = 100.0;
+					//proteinHGroup.percentWidth = 100.0;
+					proteinHGroup.width = mainWidth;
 					chartCanvas.addChild(proteinHGroup);
 					
 					var proteinLabel:mx.controls.Label = new mx.controls.Label(); 
@@ -170,13 +173,14 @@
 						var contigEnd:int = contig.end;
 						
 						hgroup.y = currentHeight;
-						if(contigBegin == 1){
-							hgroup.x = 0;
-						}else{
-							hgroup.x = Math.floor((contigBegin * mainWidth)/proteinLength);	
-						}							
+						contigBegin--;
+						hgroup.x = Math.round((contigBegin * mainWidth)/proteinLength);	
+													
 						var tempWidth:Number = Math.round(((contigEnd - contigBegin) * mainWidth)/proteinLength);						
-						hgroup.percentWidth = Math.ceil((100.0 * tempWidth)/mainWidth); 
+						//hgroup.percentWidth = Math.ceil((100.0 * tempWidth)/mainWidth); 
+						hgroup.width = tempWidth;
+						
+						
 						hgroup.setStyle("backgroundColor", Math.random() * uint.MAX_VALUE);
 						
 						isotigBars.push(hgroup);
@@ -273,7 +277,7 @@
 				proteinsSearchBar.setResults(results); 				
 			}
 			protected function onGoToElementProtein(event:SearchBarEvent):void{				
-				var list:XMLList = xml.protein;
+				var list:XMLList = XMLList(proteinsDataGrid.dataProvider);
 				var found:Boolean = false;
 				
 				for(var i:int=0;i<list.length() && !found;i++){
@@ -314,11 +318,22 @@
 					
 					//Debugger.appendText("percentage width: " + bar.percentWidth,Debugger.ERROR_MODE);
 					var contigBegin:int = selectedProtein.contig[i].begin
-					if(contigBegin == 1){
-						bar.x = 0;
-					}else{
-						bar.x = Math.round((contigBegin * chartCanvas.width)/selectedProtein.length);
-					}					
+					var contigEnd:int = selectedProtein.contig[i].end
+					contigBegin--;					
+					
+					bar.x = Math.round((contigBegin * chartCanvas.width)/selectedProtein.length);			
+					
+					var tempWidth:Number = Math.round(((contigEnd - contigBegin) * chartCanvas.width)/Number(selectedProtein.length[0]));						
+					//hgroup.percentWidth = Math.ceil((100.0 * tempWidth)/mainWidth); 
+										
+					bar.width = tempWidth;
+					
+					proteinHGroup.width = chartCanvas.width;
+					
+					Debugger.appendText("chartCanvas.width = " + chartCanvas.width + "bar.width = " + bar.width, Debugger.ERROR_MODE);
+					
+					
+					
 					bar.validateNow();
 				}
 			}
