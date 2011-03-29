@@ -269,7 +269,25 @@
 				var items:XMLList = xml.protein;
 				
 				var results:Array = new Array();
-				var list:XMLList = XMLList(items.((child(String(proteinsSearchComboBox.selectedItem))).text().toUpperCase().indexOf(event.getSearchText().toUpperCase()) >=0 ));
+				var list:XMLList = new XMLList();
+				
+				var selectedField:String = String(proteinsSearchComboBox.selectedItem);
+				
+				if(selectedField == "ID"){
+					list = XMLList(items.((child("id")).text().toUpperCase().indexOf(event.getSearchText().toUpperCase()) >=0 ));
+				}else if(selectedField == "Length"){
+					list = XMLList(items.((child("length")).text().toUpperCase().indexOf(event.getSearchText().toUpperCase()) >=0 ));
+				}else if(selectedField == "Number of Isotigs"){
+					list = XMLList(items.((child("number_of_isotigs")).text().toUpperCase().indexOf(event.getSearchText().toUpperCase()) >=0 ));
+				}/* else if(selectedField == "Coverage(%) >= "){
+					for each(var prot:XML in items){
+						var value:Number = Number(prot.child("protein_coverage_percentage")[0]);
+						if(value >= Number(event.getSearchText())){
+							list += prot;
+						}
+					}					
+				} */
+				
 				for each(var tempXML:XML in list){
 					var tempProtein:Protein = new Protein(tempXML);
 					results.push(tempProtein.id);
@@ -344,11 +362,15 @@
 						
 		<mx:HDividedBox label="Contigs" width="100%" height="100%">
 			<mx:VBox  width="45%" height="100%">
-					<s:HGroup width="100%" verticalAlign="middle">
-						<s:ComboBox id="proteinsSearchComboBox" selectedIndex="0" width="60">
+					<mx:HBox width="100%" verticalAlign="middle" paddingLeft="5" paddingRight="5" 
+							 paddingTop="5" paddingBottom="5">
+						<s:ComboBox id="proteinsSearchComboBox" selectedIndex="0">
 							<s:dataProvider>
 								<mx:ArrayList>
-									<fx:String>id</fx:String>
+									<fx:String>ID</fx:String>
+									<fx:String>Length</fx:String>
+									<fx:String>Number of Isotigs</fx:String>
+									<fx:String>Coverage(%) >= </fx:String>
 								</mx:ArrayList>
 							</s:dataProvider>
 						</s:ComboBox>
@@ -357,7 +379,7 @@
 										  nextResultIcon="{nextResultIcon}"
 										  previousResultIcon="{previousResultIcon}">
 						</search:SearchBar>
-					</s:HGroup>
+					</mx:HBox>
 					<mx:DataGrid id="proteinsDataGrid" 
 								 height="100%" width="100%"
 								 dataProvider="{xml.protein}" 
