@@ -330,7 +330,7 @@
 					
 					proteinHGroup.width = chartCanvas.width;
 					
-					Debugger.appendText("chartCanvas.width = " + chartCanvas.width + "bar.width = " + bar.width, Debugger.ERROR_MODE);
+					//Debugger.appendText("chartCanvas.width = " + chartCanvas.width + "bar.width = " + bar.width, Debugger.ERROR_MODE);
 					
 					
 					
